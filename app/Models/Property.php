@@ -10,9 +10,11 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\MorphMany;
 use App\Models\Scopes\ApprovedPropertyScope;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 
 class Property extends Model
 {
+    use HasFactory;
     protected $fillable = [
         'office_id',
         'owner_id',
@@ -95,7 +97,11 @@ class Property extends Model
             );
     }
     protected static function booted(): void
-    {
+{
     static::addGlobalScope(new ApprovedPropertyScope());
-    }
+
+    static::deleting(function (Property $property) {
+        $property->images()->delete();
+    });
+}
 }

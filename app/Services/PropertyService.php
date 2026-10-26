@@ -70,8 +70,17 @@ class PropertyService
                     )
                 )
                 ->orderByDesc('created_at')
-                ->orderByDesc('id')
-                ->cursorPaginate($perPage)
+->orderByDesc('id')
+->cursorPaginate(
+    $perPage,
+    ['*'],
+    'cursor',
+    isset($filters['cursor'])
+        ? \Illuminate\Pagination\Cursor::fromEncoded(
+            $filters['cursor']
+        )
+        : null
+)
         );
     }
 

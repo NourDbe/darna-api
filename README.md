@@ -1,58 +1,262 @@
-<p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
+# Darna — Real Estate API
 
-<p align="center">
-<a href="https://github.com/laravel/framework/actions"><img src="https://github.com/laravel/framework/workflows/tests/badge.svg" alt="Build Status"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/dt/laravel/framework" alt="Total Downloads"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/v/laravel/framework" alt="Latest Stable Version"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
-</p>
+Darna is an API-first real-estate backend built with Laravel. It provides versioned REST API endpoints for browsing and managing property listings, with office ownership checks, filtering, cursor pagination, and Redis-backed caching.
 
-## About Laravel
+## Features
 
-Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
+- Versioned API endpoints: V1 and V2.
+- Different price response formats between API versions.
+- Property listing filters:
+  - Governorate
+  - Listing type
+  - Minimum and maximum price
+- Cursor pagination for public property listings.
+- Offset pagination support for office property listings.
+- Laravel Sanctum authentication for protected operations.
+- Office ownership verification for property updates and deletion.
+- Form Request validation with Arabic validation messages.
+- API Resources for controlled JSON responses.
+- Eloquent relationships and query scopes.
+- Polymorphic property image relationships.
+- Redis-backed property detail and listing caches.
+- Automated feature tests.
 
-- [Simple, fast routing engine](https://laravel.com/docs/routing).
-- [Powerful dependency injection container](https://laravel.com/docs/container).
-- Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
-- Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
-- Database agnostic [schema migrations](https://laravel.com/docs/migrations).
-- [Robust background job processing](https://laravel.com/docs/queues).
-- [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
+## Requirements
 
-Laravel is accessible, powerful, and provides tools required for large, robust applications.
+- PHP 8.3 or later, compatible with the project's Composer constraints.
+- Composer.
+- SQLite.
+- Redis-compatible server.
+- Node.js and npm only if you need to build the included frontend assets.
 
-## Learning Laravel
+## Installation
 
-Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework.
-
-In addition, [Laracasts](https://laracasts.com) contains thousands of video tutorials on a range of topics including Laravel, modern PHP, unit testing, and JavaScript. Boost your skills by digging into our comprehensive video library.
-
-You can also watch bite-sized lessons with real-world projects on [Laravel Learn](https://laravel.com/learn), where you will be guided through building a Laravel application from scratch while learning PHP fundamentals.
-
-## Agentic Development
-
-Laravel's predictable structure and conventions make it ideal for AI coding agents like Claude Code, Cursor, and GitHub Copilot. Install [Laravel Boost](https://laravel.com/docs/ai) to supercharge your AI workflow:
+Clone the repository and enter the project directory:
 
 ```bash
-composer require laravel/boost --dev
-
-php artisan boost:install
+git clone https://github.com/NourDbe/darna-api.git
+cd darna-api
 ```
 
-Boost provides your agent 15+ tools and skills that help agents build Laravel applications while following best practices.
+Install PHP dependencies:
 
-## Contributing
+```bash
+composer install
+```
 
-Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
+Create the environment file if it does not exist:
 
-## Code of Conduct
+```bash
+cp .env.example .env
+```
 
-In order to ensure that the Laravel community is welcoming to all, please review and abide by the [Code of Conduct](https://laravel.com/docs/contributions#code-of-conduct).
+On Windows PowerShell, use:
 
-## Security Vulnerabilities
+```powershell
+Copy-Item .env.example .env
+```
 
-If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
+Generate the application key:
+
+```bash
+php artisan key:generate
+```
+
+Ensure SQLite is enabled in PHP and configure the database path in `.env` if required. Then run the migrations and seeders:
+
+```bash
+php artisan migrate --seed
+```
+
+Start the development server:
+
+```bash
+php artisan serve
+```
+
+The API will normally be available at `http://127.0.0.1:8000`.
+
+> Run migrations and seeders only against the intended development database. Back up any database containing data you need to preserve.
+
+## Environment configuration
+
+The example environment uses SQLite:
+
+```dotenv
+DB_CONNECTION=sqlite
+```
+
+Darna's property cache uses the Redis cache store. Configure the local environment to use Redis and Predis:
+
+```dotenv
+CACHE_STORE=redis
+REDIS_CLIENT=predis
+REDIS_HOST=127.0.0.1
+REDIS_PASSWORD=null
+REDIS_PORT=6379
+```
+
+These settings assume that a Redis-compatible server is running locally on port `6379`. If your server uses another host, port, or password, update the values accordingly.
+
+The committed `.env.example` may contain Laravel defaults. Ensure your local `.env` is configured for Redis before testing Redis-backed endpoints. Do not commit `.env` or other files containing secrets.
+
+After changing environment settings, clear cached Laravel configuration:
+
+```bash
+php artisan config:clear
+```
+
+### Redis on Windows
+
+Install and start a Redis-compatible server, such as Memurai, using its supported Windows installation instructions. Confirm that the service is running and listening on the configured host and port before testing the application.
+
+## API endpoints
+
+The API is versioned under `/api/v1` and `/api/v2`.
+
+| Method | Endpoint | Purpose |
+|---|---|---|
+| GET | `/api/v1/properties` | List and filter available properties |
+| GET | `/api/v1/properties/{property}` | Retrieve property details |
+| PATCH | `/api/v1/properties/{property}` | Update a property owned by the authenticated office |
+| DELETE | `/api/v1/properties/{property}` | Delete a property owned by the authenticated office |
+| GET | `/api/v2/properties` | List and filter available properties using V2 response formatting |
+| GET | `/api/v2/properties/{property}` | Retrieve property details using V2 response formatting |
+| PATCH | `/api/v2/properties/{property}` | Update a property owned by the authenticated office |
+| DELETE | `/api/v2/properties/{property}` | Delete a property owned by the authenticated office |
+
+The protected update and delete endpoints require a valid Laravel Sanctum authentication context. The project does not provide a full login flow as part of this API setup.
+
+## API version differences
+
+The versions share the property service and business logic, but format the price differently.
+
+### V1 response
+
+```json
+{
+  "data": {
+    "id": 1,
+    "title": "Example property",
+    "price": 50000,
+    "currency": "USD"
+  }
+}
+```
+
+### V2 response
+
+```json
+{
+  "data": {
+    "id": 1,
+    "title": "Example property",
+    "price": {
+      "amount": 50000,
+      "currency": "USD"
+    }
+  }
+}
+```
+
+These examples illustrate the price structure; actual responses include the other fields defined by the relevant API Resource.
+
+## Filtering and pagination
+
+The public listing endpoint accepts the following query parameters:
+
+| Parameter | Description |
+|---|---|
+| `per_page` | Number of items per page; allowed range is 1–50 |
+| `governorate_id` | Filter by governorate ID |
+| `listing_type` | Filter by listing type |
+| `min_price` | Minimum property price |
+| `max_price` | Maximum property price; must be greater than or equal to `min_price` |
+| `cursor` | Cursor used to retrieve the next or previous cursor page |
+
+Example:
+
+```http
+GET /api/v1/properties?per_page=10&governorate_id=1&min_price=20000&max_price=100000
+```
+
+Cursor pagination example:
+
+```http
+GET /api/v1/properties?per_page=10
+```
+
+Use the cursor returned by the pagination response when requesting the next page. Public listings use cursor pagination; office dashboard queries use offset pagination in the service layer.
+
+## Authentication and authorization
+
+Protected endpoints require authentication through Laravel Sanctum.
+
+- An office can update or delete properties associated with that office.
+- An office cannot update or delete another office's properties.
+- Unauthenticated requests to protected endpoints should be rejected.
+- Validation errors and authorization failures should be handled separately.
+
+The property ownership check is implemented through the `PropertyOwnershipChecker` contract and its default service implementation.
+
+## Property visibility
+
+The default property query scope returns properties that have an approval timestamp and an `available` status. Office queries may explicitly bypass the global scope to manage properties that are not publicly available.
+
+## Caching
+
+Property detail and listing data are cached using the Redis cache store. The current cache service defines a TTL of 300 seconds (5 minutes).
+
+The service includes invalidation methods for property details and property lists. Property updates and deletions call the invalidation service so stale cached data does not remain available after these operations.
+
+The cache stores underlying property data rather than version-specific final JSON, allowing V1 and V2 to format the same data independently.
+
+Redis cache tags are used by the cache service to group related keys. Ensure the configured cache driver supports the tag operations used by the project.
+
+## Running tests
+
+Run the automated test suite:
+
+```bash
+php artisan test
+```
+
+The feature tests cover property approval visibility, ownership checks, API authorization, V1/V2 price formatting, caching behavior, and cursor pagination.
+
+## Project structure
+
+```text
+app/
+  Contracts/
+  Enums/
+  Http/
+    Controllers/Api/V1/
+    Controllers/Api/V2/
+    Requests/
+    Resources/Api/V1/
+    Resources/Api/V2/
+  Models/
+    Scopes/
+  Providers/
+  Services/
+database/
+  factories/
+  migrations/
+  seeders/
+routes/
+  api.php
+tests/
+  Feature/
+```
+
+## Development notes
+
+- Keep controllers thin and put shared property business logic in services.
+- Use API Resources to control the fields returned by endpoints.
+- Do not expose private owner information, internal notes, or office commission data in public responses.
+- Add tests when changing authorization, pagination, caching, or response formats.
+- Do not commit `.env`, credentials, tokens, or other secrets.
 
 ## License
 
-The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+This project is built with Laravel. Confirm the repository's intended project license before distributing it.

@@ -84,17 +84,50 @@ class PropertyService
         );
     }
 
-    public function findAvailableProperty(
-        int $propertyId,
-        PropertyCacheService $cache
-    ): Property {
-        return $cache->rememberProperty(
-            $propertyId,
-            fn () => Property::query()
+
+
+public function findAvailableProperty(
+    int $propertyId,
+    PropertyCacheService $cache
+): Property {
+    $data = $cache->rememberProperty(
+        $propertyId,
+        function () use ($propertyId) {
+            $property = Property::query()
                 ->with(['governorate', 'images'])
-                ->findOrFail($propertyId)
-        );
-    }
+                ->findOrFail($propertyId);
+
+            return [
+                'attributes' => $property->getAttributes(),
+                'governorate' => $property->governorate?->getAttributes(),
+                'images' => $property->images
+                    ->map(fn ($image) => $image->getAttributes())
+                    ->all(),
+            ];
+        }
+    );
+
+    $property = (new Property())->newFromBuilder(
+        $data['attributes']
+    );
+
+    $governorate = $data['governorate'] !== null
+        ? (new \App\Models\Governorate())->newFromBuilder(
+            $data['governorate']
+        )
+        : null;
+
+    $images = collect($data['images'])->map(
+        fn (array $attributes) => (new \App\Models\Image())
+            ->newFromBuilder($attributes)
+    );
+
+    return $property
+        ->setRelation('governorate', $governorate)
+        ->setRelation('images', $images);
+}
+
+
 
     public function updateProperty(
         Property $property,

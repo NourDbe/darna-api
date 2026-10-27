@@ -114,4 +114,20 @@ class PropertyApiAuthorizationTest extends TestCase
             'id' => $property->id,
         ]);
     }
+    public function test_v1_and_v2_return_different_price_structures(): void
+    {
+        $user = User::factory()->create();
+        $property = $this->createPropertyFor($user);
+
+        $v1Response = $this->getJson('/api/v1/properties/'.$property->id);
+        $v2Response = $this->getJson('/api/v2/properties/'.$property->id);
+
+        $v1Response->assertOk()
+            ->assertJsonPath('data.price', 50000)
+            ->assertJsonPath('data.currency', 'USD');
+
+        $v2Response->assertOk()
+            ->assertJsonPath('data.price.amount', 50000)
+            ->assertJsonPath('data.price.currency', 'USD');
+    }
 }

@@ -15,16 +15,16 @@ class PropertyCacheService
     private const GOVERNORATE_COUNTS_TAG = 'properties:governorate-counts';
 
     public function rememberProperty(
-        int $propertyId,
-        callable $callback
+    int $propertyId,
+    callable $callback
     ): mixed {
-        return Cache::store('redis')
-            ->tags([self::PROPERTY_TAG])
-            ->remember(
-                "properties:detail:{$propertyId}",
-                self::TTL,
-                $callback
-            );
+    return Cache::store('redis')
+        ->tags([self::PROPERTY_TAG])
+        ->remember(
+            "properties:detail:{$propertyId}",
+            self::TTL,
+            $callback
+        );
     }
 
     public function forgetProperty(int $propertyId): void

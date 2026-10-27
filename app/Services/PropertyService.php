@@ -2,10 +2,14 @@
 
 namespace App\Services;
 
+use App\Models\Governorate;
+use App\Models\Image;
 use App\Models\Property;
 use Illuminate\Contracts\Pagination\CursorPaginator;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Pagination\Cursor;
+use Illuminate\Support\Collection;
 
 class PropertyService
 {
@@ -27,7 +31,6 @@ class PropertyService
     ): CursorPaginator {
         $cache = app(PropertyCacheService::class);
 
-        // ترتيب الفلاتر لتثبيت مفتاح الكاش.
         $cacheFilters = [
             'governorate_id' => $filters['governorate_id'] ?? null,
             'listing_type' => $filters['listing_type'] ?? null,
@@ -70,85 +73,145 @@ class PropertyService
                     )
                 )
                 ->orderByDesc('created_at')
-->orderByDesc('id')
-->cursorPaginate(
-    $perPage,
-    ['*'],
-    'cursor',
-    isset($filters['cursor'])
-        ? \Illuminate\Pagination\Cursor::fromEncoded(
-            $filters['cursor']
-        )
-        : null
-)
+                ->orderByDesc('id')
+                ->cursorPaginate(
+                    $perPage,
+                    ['*'],
+                    'cursor',
+                    isset($filters['cursor'])
+                        ? Cursor::fromEncoded($filters['cursor'])
+                        : null
+                )
         );
     }
 
+    public function findAvailableProperty(
+        int $propertyId,
+        PropertyCacheService $cache
+    ): Property {
+        $data = $cache->rememberProperty(
+            $propertyId,
+            function () use ($propertyId): array {
+                $property = Property::query()
+                    ->with(['governorate', 'images'])
+                    ->findOrFail($propertyId);
 
+                return $this->serializeCachedProperty($property);
+            }
+        );
 
-public function findAvailableProperty(
-    int $propertyId,
-    PropertyCacheService $cache
-): Property {
-    $data = $cache->rememberProperty(
-        $propertyId,
-        function () use ($propertyId) {
-            $property = Property::query()
-                ->with(['governorate', 'images'])
-                ->findOrFail($propertyId);
-
-            return [
-                'attributes' => $property->getAttributes(),
-                'governorate' => $property->governorate?->getAttributes(),
-                'images' => $property->images
-                    ->map(fn ($image) => $image->getAttributes())
-                    ->all(),
-            ];
-        }
-    );
-
-    $property = (new Property())->newFromBuilder(
-        $data['attributes']
-    );
-
-    $governorate = $data['governorate'] !== null
-        ? (new \App\Models\Governorate())->newFromBuilder(
-            $data['governorate']
-        )
-        : null;
-
-    $images = collect($data['images'])->map(
-        fn (array $attributes) => (new \App\Models\Image())
-            ->newFromBuilder($attributes)
-    );
-
-    return $property
-        ->setRelation('governorate', $governorate)
-        ->setRelation('images', $images);
-}
-
-
+        return $this->hydrateCachedProperty($data);
+    }
 
     public function updateProperty(
         Property $property,
         array $data,
         PropertyCacheService $cache
     ): Property {
+        $oldGovernorateId = (int) $property->governorate_id;
+
         $property->update($data);
+        $property->refresh();
 
-        $cache->forgetProperties([$property->id]);
+        $newGovernorateId = (int) $property->governorate_id;
 
-        return $property->fresh(['governorate', 'images']);
+        $cache->forgetProperties([(int) $property->id]);
+        $cache->forgetGovernorate($oldGovernorateId);
+
+        if ($newGovernorateId !== $oldGovernorateId) {
+            $cache->forgetGovernorate($newGovernorateId);
+        }
+
+        return $property->load(['governorate', 'images']);
     }
 
     public function deleteProperty(
         Property $property,
         PropertyCacheService $cache
     ): void {
-        $propertyId = $property->id;
+        $propertyId = (int) $property->id;
+        $governorateId = (int) $property->governorate_id;
 
         $property->delete();
 
         $cache->forgetProperties([$propertyId]);
+        $cache->forgetGovernorate($governorateId);
+    }
+
+    public function getFeaturedProperties(
+        PropertyCacheService $cache
+    ): Collection {
+        $data = $cache->rememberFeatured(
+            fn () => Property::query()
+                ->where('is_featured', true)
+                ->with(['governorate', 'images'])
+                ->orderByDesc('created_at')
+                ->orderByDesc('id')
+                ->limit(10)
+                ->get()
+                ->map(
+                    fn (Property $property) =>
+                        $this->serializeCachedProperty($property)
+                )
+                ->all()
+        );
+
+        return collect($data)->map(
+            fn (array $item) => $this->hydrateCachedProperty($item)
+        );
+    }
+
+    public function getAvailableCountsByGovernorate(
+        PropertyCacheService $cache
+    ): array {
+        return $cache->rememberGovernorateCounts(
+            fn () => Property::query()
+                ->selectRaw(
+                    'governorate_id, COUNT(*) as properties_count'
+                )
+                ->groupBy('governorate_id')
+                ->get()
+                ->mapWithKeys(
+                    fn ($row) => [
+                        'governorate_' . $row->governorate_id =>
+                            (int) $row->properties_count,
+                    ]
+                )
+                ->all()
+        );
+    }
+
+    private function serializeCachedProperty(
+        Property $property
+    ): array {
+        return [
+            'attributes' => $property->getAttributes(),
+            'governorate' => $property->governorate?->getAttributes(),
+            'images' => $property->images
+                ->map(fn (Image $image) => $image->getAttributes())
+                ->all(),
+        ];
+    }
+
+    private function hydrateCachedProperty(array $data): Property
+    {
+        $property = (new Property())->newFromBuilder(
+            $data['attributes']
+        );
+
+        $governorate = $data['governorate'] !== null
+            ? (new Governorate())->newFromBuilder(
+                $data['governorate']
+            )
+            : null;
+
+        $images = collect($data['images'])->map(
+            fn (array $attributes) => (new Image())
+                ->newFromBuilder($attributes)
+        );
+
+        return $property
+            ->setRelation('governorate', $governorate)
+            ->setRelation('images', $images);
     }
 }

@@ -2,14 +2,18 @@
 
 namespace App\Http\Controllers\Api\V1;
 
+use App\Contracts\PropertyOwnershipChecker;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\PropertyFilterRequest;
-use App\Http\Resources\Api\V1\PropertyResource;
-use App\Services\PropertyService;
-use App\Services\PropertyCacheService;
 use App\Http\Requests\UpdatePropertyRequest;
+use App\Http\Resources\Api\V1\PropertyResource;
+use App\Http\Resources\GovernorateStatisticsResource;
 use App\Models\Property;
+use App\Services\PropertyCacheService;
+use App\Services\PropertyService;
 use Illuminate\Http\Request;
+use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 
 class PropertyController extends Controller
 {
@@ -18,72 +22,90 @@ class PropertyController extends Controller
     ) {
     }
 
-    public function index(PropertyFilterRequest $request)
-    {
+    public function index(
+        PropertyFilterRequest $request
+    ): AnonymousResourceCollection {
         $filters = $request->validated();
-
         $perPage = (int) ($filters['per_page'] ?? 15);
 
-        $properties = $this->propertyService->cursorPaginateAvailable(
-            $perPage,
-            $filters
-        );
+        $properties = $this->propertyService
+            ->cursorPaginateAvailable($perPage, $filters);
 
         return PropertyResource::collection($properties);
     }
+
     public function show(
-    int $property,
-    PropertyCacheService $cache
-) {
-    $propertyModel = $this->propertyService->findAvailableProperty(
-        $property,
-        $cache
-    );
+        int $property,
+        PropertyCacheService $cache
+    ): PropertyResource {
+        $propertyModel = $this->propertyService
+            ->findAvailableProperty($property, $cache);
 
-    return new PropertyResource($propertyModel);
-}
-public function update(
-    UpdatePropertyRequest $request,
-    int $property,
-    PropertyCacheService $cache
-) {
-    $propertyModel = Property::withoutGlobalScopes()
-        ->findOrFail($property);
+        return new PropertyResource($propertyModel);
+    }
 
-    $updatedProperty = $this->propertyService->updateProperty(
-        $propertyModel,
-        $request->validated(),
-        $cache
-    );
+    public function update(
+        UpdatePropertyRequest $request,
+        int $property,
+        PropertyCacheService $cache
+    ): PropertyResource {
+        $propertyModel = Property::withoutGlobalScopes()
+            ->findOrFail($property);
 
-    return new PropertyResource($updatedProperty);
-}
+        $updatedProperty = $this->propertyService->updateProperty(
+            $propertyModel,
+            $request->validated(),
+            $cache
+        );
 
-public function destroy(
-    Request $request,
-    int $property,
-    PropertyCacheService $cache
-) {
-    $user = $request->user();
+        return new PropertyResource($updatedProperty);
+    }
 
-    abort_unless($user, 401);
+    public function destroy(
+        Request $request,
+        int $property,
+        PropertyCacheService $cache
+    ): JsonResponse {
+        $user = $request->user();
 
-    $propertyModel = Property::withoutGlobalScopes()
-        ->findOrFail($property);
+        abort_unless($user, 401);
 
-    abort_unless(
-        app(\App\Contracts\PropertyOwnershipChecker::class)
-            ->owns($user, $propertyModel),
-        403
-    );
+        $propertyModel = Property::withoutGlobalScopes()
+            ->findOrFail($property);
 
-    $this->propertyService->deleteProperty(
-        $propertyModel,
-        $cache
-    );
+        abort_unless(
+            app(PropertyOwnershipChecker::class)
+                ->owns($user, $propertyModel),
+            403
+        );
 
-    return response()->json([
-        'message' => 'تم حذف العقار بنجاح.',
-    ]);
-}
+        $this->propertyService->deleteProperty(
+            $propertyModel,
+            $cache
+        );
+
+        return response()->json([
+            'message' => 'تم حذف العقار بنجاح.',
+        ]);
+    }
+
+    public function featured(
+        PropertyCacheService $cache
+    ): AnonymousResourceCollection {
+        $properties = $this->propertyService
+            ->getFeaturedProperties($cache);
+
+        return PropertyResource::collection($properties);
+    }
+
+    public function governorateStatistics(
+        PropertyCacheService $cache
+    ): GovernorateStatisticsResource {
+        $statistics = $this->propertyService
+            ->getAvailableCountsByGovernorate($cache);
+
+        return new GovernorateStatisticsResource([
+            'counts' => $statistics,
+        ]);
+    }
 }

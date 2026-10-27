@@ -12,19 +12,22 @@ class PropertyCacheService
 
     private const FEATURED_TAG = 'properties:featured';
 
-    private const GOVERNORATE_COUNTS_TAG = 'properties:governorate-counts';
+    private const GOVERNORATE_COUNTS_TAG =
+        'properties:governorate-counts';
+
+    private const GOVERNORATE_TAG_PREFIX = 'governorate:';
 
     public function rememberProperty(
-    int $propertyId,
-    callable $callback
+        int $propertyId,
+        callable $callback
     ): mixed {
-    return Cache::store('redis')
-        ->tags([self::PROPERTY_TAG])
-        ->remember(
-            "properties:detail:{$propertyId}",
-            self::TTL,
-            $callback
-        );
+        return Cache::store('redis')
+            ->tags([self::PROPERTY_TAG])
+            ->remember(
+                "properties:detail:{$propertyId}",
+                self::TTL,
+                $callback
+            );
     }
 
     public function forgetProperty(int $propertyId): void
@@ -57,11 +60,44 @@ class PropertyCacheService
             );
     }
 
+    public function rememberGovernorate(
+        int $governorateId,
+        callable $callback
+    ): mixed {
+        return Cache::store('redis')
+            ->tags([
+                self::GOVERNORATE_COUNTS_TAG,
+                self::GOVERNORATE_TAG_PREFIX . $governorateId,
+            ])
+            ->remember(
+                "properties:governorate:{$governorateId}",
+                self::TTL,
+                $callback
+            );
+    }
+
+    public function forgetGovernorate(int $governorateId): void
+    {
+        Cache::store('redis')
+            ->tags([
+                self::GOVERNORATE_TAG_PREFIX . $governorateId,
+            ])
+            ->flush();
+
+        Cache::store('redis')
+            ->tags([self::GOVERNORATE_COUNTS_TAG])
+            ->flush();
+    }
+
     public function forgetPropertyLists(): void
     {
-        Cache::store('redis')->tags([self::PROPERTY_TAG])->flush();
+        Cache::store('redis')
+            ->tags([self::PROPERTY_TAG])
+            ->flush();
 
-        Cache::store('redis')->tags([self::FEATURED_TAG])->flush();
+        Cache::store('redis')
+            ->tags([self::FEATURED_TAG])
+            ->flush();
 
         Cache::store('redis')
             ->tags([self::GOVERNORATE_COUNTS_TAG])
